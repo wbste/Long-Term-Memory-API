@@ -16,6 +16,13 @@ export interface IMemoryRepository {
   listActiveBySession(sessionId: string, take?: number): Promise<Memory[]>;
   updateLastAccessed(ids: string[], timestamp: Date): Promise<void>;
   softDelete(sessionId: string, memoryIds?: string[]): Promise<number>;
+  softDeleteByIds(ids: string[]): Promise<number>;
+  findPrunable(params: {
+    createdBefore: Date;
+    lastAccessedBefore: Date;
+    maxImportance: number;
+    take?: number;
+  }): Promise<Memory[]>;
   countActive(sessionId: string): Promise<number>;
   latestAccessed(sessionId: string): Promise<Date | null>;
 }
@@ -51,6 +58,38 @@ export class MemoryRepository implements IMemoryRepository {
       data: { isDeleted: true }
     });
     return result.count;
+  }
+
+  async softDeleteByIds(ids: string[]): Promise<number> {
+    if (!ids.length) return 0;
+    const result = await prisma.memory.updateMany({
+      where: { id: { in: ids }, isDeleted: false },
+      data: { isDeleted: true }
+    });
+    return result.count;
+  }
+
+  async findPrunable({
+    createdBefore,
+    lastAccessedBefore,
+    maxImportance,
+    take = 200
+  }: {
+    createdBefore: Date;
+    lastAccessedBefore: Date;
+    maxImportance: number;
+    take?: number;
+  }): Promise<Memory[]> {
+    return prisma.memory.findMany({
+      where: {
+        isDeleted: false,
+        createdAt: { lt: createdBefore },
+        lastAccessedAt: { lt: lastAccessedBefore },
+        importanceScore: { lte: maxImportance }
+      },
+      orderBy: [{ importanceScore: 'asc' }, { lastAccessedAt: 'asc' }],
+      take
+    });
   }
 
   async countActive(sessionId: string): Promise<number> {

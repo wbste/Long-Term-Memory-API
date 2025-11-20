@@ -12,10 +12,18 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default('*'),
   OPENAI_API_KEY: z.string().optional(),
   ENABLE_EMBEDDINGS: z.string().optional(),
-  SCORING_WEIGHT_SIMILARITY: z.coerce.number().default(0.5),
-  SCORING_WEIGHT_RECENCY: z.coerce.number().default(0.2),
-  SCORING_WEIGHT_IMPORTANCE: z.coerce.number().default(0.3),
-  MAX_TEXT_LENGTH: z.coerce.number().default(4000)
+  // New weighting keys; also support legacy SCORING_* for compatibility
+  WEIGHT_SIMILARITY: z.coerce.number().optional(),
+  WEIGHT_RECENCY: z.coerce.number().optional(),
+  WEIGHT_IMPORTANCE: z.coerce.number().optional(),
+  SCORING_WEIGHT_SIMILARITY: z.coerce.number().optional(),
+  SCORING_WEIGHT_RECENCY: z.coerce.number().optional(),
+  SCORING_WEIGHT_IMPORTANCE: z.coerce.number().optional(),
+  MAX_TEXT_LENGTH: z.coerce.number().default(4000),
+  ADMIN_API_KEY: z.string().optional(),
+  PRUNE_MAX_AGE_DAYS: z.coerce.number().default(90),
+  PRUNE_INACTIVE_DAYS: z.coerce.number().default(30),
+  PRUNE_IMPORTANCE_THRESHOLD: z.coerce.number().default(0.3)
 });
 
 const parsed = envSchema.safeParse(process.env);
@@ -39,11 +47,26 @@ export const env = {
   embeddingsEnabled:
     raw.ENABLE_EMBEDDINGS?.toLowerCase() === 'true' && Boolean(raw.OPENAI_API_KEY),
   scoringWeights: {
-    similarity: raw.SCORING_WEIGHT_SIMILARITY,
-    recency: raw.SCORING_WEIGHT_RECENCY,
-    importance: raw.SCORING_WEIGHT_IMPORTANCE
+    similarity:
+      raw.WEIGHT_SIMILARITY ??
+      raw.SCORING_WEIGHT_SIMILARITY ??
+      0.5,
+    recency:
+      raw.WEIGHT_RECENCY ??
+      raw.SCORING_WEIGHT_RECENCY ??
+      0.2,
+    importance:
+      raw.WEIGHT_IMPORTANCE ??
+      raw.SCORING_WEIGHT_IMPORTANCE ??
+      0.3
   },
   maxTextLength: raw.MAX_TEXT_LENGTH,
+  adminApiKey: raw.ADMIN_API_KEY,
+  prune: {
+    maxAgeDays: raw.PRUNE_MAX_AGE_DAYS,
+    inactiveDays: raw.PRUNE_INACTIVE_DAYS,
+    importanceThreshold: raw.PRUNE_IMPORTANCE_THRESHOLD
+  },
   isProduction: raw.NODE_ENV === 'production',
   isTest: raw.NODE_ENV === 'test'
 };

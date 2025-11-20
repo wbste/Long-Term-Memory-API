@@ -52,6 +52,41 @@ export class FakeMemoryRepository implements IMemoryRepository {
     return count;
   }
 
+  async softDeleteByIds(ids: string[]): Promise<number> {
+    let count = 0;
+    this.memories = this.memories.map((m) => {
+      if (ids.includes(m.id) && !m.isDeleted) {
+        count += 1;
+        return { ...m, isDeleted: true };
+      }
+      return m;
+    });
+    return count;
+  }
+
+  async findPrunable({
+    createdBefore,
+    lastAccessedBefore,
+    maxImportance,
+    take = 200
+  }: {
+    createdBefore: Date;
+    lastAccessedBefore: Date;
+    maxImportance: number;
+    take?: number;
+  }): Promise<Memory[]> {
+    return this.memories
+      .filter(
+        (m) =>
+          !m.isDeleted &&
+          m.createdAt < createdBefore &&
+          m.lastAccessedAt < lastAccessedBefore &&
+          m.importanceScore <= maxImportance
+      )
+      .sort((a, b) => a.importanceScore - b.importanceScore || a.lastAccessedAt.getTime() - b.lastAccessedAt.getTime())
+      .slice(0, take);
+  }
+
   async countActive(sessionId: string): Promise<number> {
     return this.memories.filter((m) => m.sessionId === sessionId && !m.isDeleted).length;
   }
@@ -61,6 +96,13 @@ export class FakeMemoryRepository implements IMemoryRepository {
       .filter((m) => m.sessionId === sessionId && !m.isDeleted)
       .sort((a, b) => b.lastAccessedAt.getTime() - a.lastAccessedAt.getTime())[0];
     return latest?.lastAccessedAt ?? null;
+  }
+
+  // Test helper to mutate timestamps
+  setTimestamps(id: string, createdAt: Date, lastAccessedAt: Date) {
+    this.memories = this.memories.map((m) =>
+      m.id === id ? { ...m, createdAt, lastAccessedAt } : m
+    );
   }
 }
 

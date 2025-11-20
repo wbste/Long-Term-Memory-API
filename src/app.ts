@@ -8,9 +8,11 @@ import { errorHandler } from './middleware/errorHandler';
 import { memoryRoutes } from './routes/memoryRoutes';
 import { sessionRoutes } from './routes/sessionRoutes';
 import { healthRoutes } from './routes/healthRoutes';
+import { adminRoutes } from './routes/adminRoutes';
 import { MemoryController } from './controllers/memoryController';
 import { SessionController } from './controllers/sessionController';
 import { HealthController } from './controllers/healthController';
+import { AdminController } from './controllers/adminController';
 import { MemoryService } from './services/memoryService';
 import { EmbeddingProvider } from './services/embeddings/EmbeddingProvider';
 
@@ -41,11 +43,13 @@ export const createApp = ({ memoryService, embeddingProvider }: AppDependencies)
   const memoryController = new MemoryController(memoryService);
   const sessionController = new SessionController(memoryService);
   const healthController = new HealthController(embeddingProvider);
+  const adminController = new AdminController(memoryService);
 
   const apiRouter = express.Router();
   apiRouter.use(memoryRoutes(memoryController));
   apiRouter.use(sessionRoutes(sessionController));
   apiRouter.use(healthRoutes(healthController));
+  apiRouter.use(adminRoutes(adminController));
 
   app.use('/api', apiRouter);
 

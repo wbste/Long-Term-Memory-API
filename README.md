@@ -35,8 +35,9 @@ Required/optional variables (see `.env.example`):
 - `CORS_ORIGIN` allowed origins (`*` allowed).
 - `OPENAI_API_KEY` enable embeddings when set.
 - `ENABLE_EMBEDDINGS` `true|false` toggle embeddings.
-- Scoring weights: `SCORING_WEIGHT_SIMILARITY`, `SCORING_WEIGHT_RECENCY`, `SCORING_WEIGHT_IMPORTANCE`.
+- Scoring weights: `WEIGHT_SIMILARITY`, `WEIGHT_RECENCY`, `WEIGHT_IMPORTANCE`.
 - `MAX_TEXT_LENGTH` maximum accepted text length.
+- Admin/pruning: `ADMIN_API_KEY`, `PRUNE_MAX_AGE_DAYS`, `PRUNE_INACTIVE_DAYS`, `PRUNE_IMPORTANCE_THRESHOLD`.
 
 ## API
 Base path: `/api`.
@@ -63,11 +64,23 @@ Retrieves relevant memories for a session and query.
 ```
 
 ### POST /api/memory/clear
-Soft-deletes a session’s memories (or selected ones).
+Soft-deletes a session's memories (or selected ones).
 ```json
 {
   "sessionId": "session-123",
   "memoryIds": ["id-1", "id-2"]
+}
+```
+
+### POST /api/admin/prune
+Prunes stale, low-importance memories. Requires header `x-api-key: <ADMIN_API_KEY>`.
+Optional body:
+```json
+{
+  "maxAgeDays": 90,
+  "inactiveDays": 30,
+  "importanceThreshold": 0.3,
+  "take": 500
 }
 ```
 

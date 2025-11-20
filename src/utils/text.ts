@@ -9,6 +9,8 @@ export const compressText = (text: string, max = 220): string => {
   return `${text.slice(0, max / 2).trim()} ... ${text.slice(-max / 2).trim()}`;
 };
 
+const clamp = (value: number, min = 0, max = 1) => Math.min(max, Math.max(min, value));
+
 const hintScore = (hint?: ImportanceHint): number => {
   if (!hint) return 0.5;
   if (hint === 'high') return 0.9;
@@ -18,22 +20,33 @@ const hintScore = (hint?: ImportanceHint): number => {
 
 export const computeImportanceScore = (text: string, hint?: ImportanceHint): number => {
   const normalized = normalizeText(text);
-  const lengthFactor = Math.min(normalized.length / env.maxTextLength, 1);
-  const numericBoost = /\d{2,}/.test(normalized) ? 0.1 : 0;
-  const decisionKeywords = /(bought|purchased|decided|planned|scheduled|deadline|deliver)/i.test(
+  const lengthFactor = clamp(normalized.length / Math.min(env.maxTextLength, 800));
+  const hasNumbers = /\d{2,}/.test(normalized);
+  const hasMoney = /(\$|€|£|¥|kr|sek|usd|eur)\s?\d+/i.test(normalized);
+  const hasDate =
+    /(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{2,4}|yesterday|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i.test(
+      normalized
+    );
+  const decisionKeywords = /(bought|purchased|decided|planned|scheduled|deadline|deliver|ordered|signed|contract)/i.test(
     normalized
-  )
-    ? 0.15
-    : 0;
-  const entityBoost = /(\d{4}-\d{2}-\d{2}|yesterday|today|tomorrow|iphone|samsung|plan)/i.test(
-    normalized
-  )
-    ? 0.1
-    : 0;
+  );
+  const productOrPerson =
+    /(iphone|samsung|pixel|macbook|tesla|gpt|chatgpt|azure|aws|google|microsoft|apple)/i.test(
+      normalized
+    ) ||
+    /([A-Z][a-z]+(?:\s[A-Z][a-z]+)+)/.test(text);
 
-  const base = 0.2 + lengthFactor * 0.3 + numericBoost + decisionKeywords + entityBoost;
+  const base =
+    0.2 +
+    lengthFactor * 0.25 +
+    (hasNumbers ? 0.08 : 0) +
+    (hasMoney ? 0.1 : 0) +
+    (hasDate ? 0.08 : 0) +
+    (decisionKeywords ? 0.15 : 0) +
+    (productOrPerson ? 0.12 : 0);
+
   const combined = (base + hintScore(hint)) / 2;
-  return Math.min(1, combined);
+  return clamp(combined);
 };
 
 export const truncateIfNeeded = (text: string): string => {

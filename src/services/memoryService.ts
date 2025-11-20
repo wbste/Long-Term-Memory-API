@@ -12,6 +12,7 @@ import { IMemoryRepository } from '../repositories/memoryRepository';
 import { ISessionRepository } from '../repositories/sessionRepository';
 import { ApiError } from '../types/errors';
 import { EmbeddingProvider } from './embeddings/EmbeddingProvider';
+import { env } from '../config';
 
 const cosineSimilarity = (a?: number[], b?: number[]): number => {
   if (!a || !b || a.length !== b.length || a.length === 0) return 0;
@@ -161,7 +162,7 @@ export class MemoryService {
       if (!matches) return { memory, finalScore: 0, similarity: 0, recencyScore: 0 };
     }
 
-    const recencyMs = Date.now() - memory.createdAt.getTime();
+    const recencyMs = this.computeRecencyAgeMs(memory);
     const { finalScore, recencyScore } = computeFinalScore({
       similarity,
       recencyMs,
@@ -186,4 +187,42 @@ export class MemoryService {
     const hits = queryTokens.filter((token) => textLower.includes(token)).length;
     return hits / queryTokens.length;
   }
+
+  private computeRecencyAgeMs(memory: Memory): number {
+    const now = Date.now();
+    const createdAge = now - memory.createdAt.getTime();
+    const lastAccessAge = memory.lastAccessedAt
+      ? now - memory.lastAccessedAt.getTime()
+      : createdAge;
+    // Use the fresher of {created, last accessed} to reward recently used or created memories
+    return Math.min(createdAge, lastAccessAge);
+  }
+
+  async pruneOldMemories(params?: {
+    maxAgeDays?: number;
+    inactiveDays?: number;
+    importanceThreshold?: number;
+    take?: number;
+  }): Promise<{ pruned: number; candidates: number }> {
+    const now = new Date();
+    const maxAgeDays = params?.maxAgeDays ?? env.prune.maxAgeDays;
+    const inactiveDays = params?.inactiveDays ?? env.prune.inactiveDays;
+    const importanceThreshold =
+      params?.importanceThreshold ?? env.prune.importanceThreshold;
+    const take = params?.take ?? 500;
+
+    const createdBefore = new Date(now.getTime() - maxAgeDays * 24 * 60 * 60 * 1000);
+    const lastAccessedBefore = new Date(now.getTime() - inactiveDays * 24 * 60 * 60 * 1000);
+
+    const candidates = await this.memoryRepository.findPrunable({
+      createdBefore,
+      lastAccessedBefore,
+      maxImportance: importanceThreshold,
+      take
+    });
+
+    const pruned = await this.memoryRepository.softDeleteByIds(candidates.map((c) => c.id));
+    return { pruned, candidates: candidates.length };
+  }
 }
+

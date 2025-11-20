@@ -8,10 +8,14 @@ export interface ScoringInput {
 
 const clamp = (value: number, min = 0, max = 1) => Math.min(max, Math.max(min, value));
 
-export const computeRecencyScore = (recencyMs: number): number => {
-  // Exponential decay: newer memories -> score near 1, older -> approach 0
+/**
+ * Exponential half-life decay:
+ * score = e^(-ln(2) * ageHours / halfLifeHours)
+ * - Very recent memories (~0 age) => score ~1
+ * - After each half-life, score halves.
+ */
+export const computeRecencyScore = (recencyMs: number, halfLifeHours = 24): number => {
   const hours = recencyMs / (1000 * 60 * 60);
-  const halfLifeHours = 24; // configurable if needed
   const decay = Math.exp(-Math.log(2) * (hours / halfLifeHours));
   return clamp(decay);
 };
