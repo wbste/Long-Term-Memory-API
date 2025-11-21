@@ -1,10 +1,9 @@
-﻿-- CreateTable
+-- CreateTable
 CREATE TABLE "Session" (
     "id" TEXT NOT NULL,
     "externalId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-
     CONSTRAINT "Session_pkey" PRIMARY KEY ("id")
 );
 
@@ -21,7 +20,6 @@ CREATE TABLE "Memory" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "lastAccessedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "isDeleted" BOOLEAN NOT NULL DEFAULT false,
-
     CONSTRAINT "Memory_pkey" PRIMARY KEY ("id")
 );
 
