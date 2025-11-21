@@ -29,7 +29,9 @@ export interface IMemoryRepository {
 
 export class MemoryRepository implements IMemoryRepository {
   async create(data: MemoryCreateInput): Promise<Memory> {
-    return prisma.memory.create({ data: { ...data, isDeleted: false } });
+    return prisma.memory.create({
+      data: { ...data, embedding: data.embedding ?? [], isDeleted: false }
+    });
   }
 
   async listActiveBySession(sessionId: string, take = 200): Promise<Memory[]> {

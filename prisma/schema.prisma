@@ -24,7 +24,7 @@ model Memory {
   metadata       Json?
   importanceScore Float
   recencyScore    Float?
-  embedding       Float[]?
+  embedding       Float[] @default([])
   createdAt      DateTime  @default(now())
   lastAccessedAt DateTime  @default(now())
   isDeleted      Boolean   @default(false)
