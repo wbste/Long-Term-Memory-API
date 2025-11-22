@@ -28,7 +28,7 @@ export interface IMemoryRepository {
     minScore: number
   ): Promise<MemoryWithSimilarity[]>;
   findDuplicate(sessionId: string, embedding: number[]): Promise<DuplicateMemory | null>;
-  updateLastAccessed(ids: string[], timestamp: Date): Promise<void>;
+  updateLastAccessed(ids: string[] | string, timestamp: Date): Promise<void>;
   softDelete(sessionId: string, memoryIds?: string[]): Promise<number>;
   softDeleteByIds(ids: string[]): Promise<number>;
   findPrunable(params: {
@@ -43,9 +43,29 @@ export interface IMemoryRepository {
 
 export class MemoryRepository implements IMemoryRepository {
   async create(data: MemoryCreateInput): Promise<Memory> {
-    return prisma.memory.create({
-      data: { ...data, embedding: data.embedding ?? [], isDeleted: false }
-    });
+    const { sessionId, text, compressedText, metadata, importanceScore, recencyScore, embedding } = data;
+    const embeddingString = `[${(embedding ?? []).join(',')}]`;
+    const metadataJson = metadata ? JSON.stringify(metadata) : null;
+
+    // With `Unsupported` types, we must use raw SQL for inserts.
+    // We insert the data and return the `id` of the new row.
+    const result = await prisma.$queryRaw<{ id: string }[]>`
+      INSERT INTO "Memory" (
+        "id", "sessionId", "text", "compressedText", "metadata", "importanceScore", "recencyScore", "embedding"
+      ) VALUES (
+        gen_random_uuid(), ${sessionId}, ${text}, ${compressedText}, ${metadataJson}::jsonb, ${importanceScore}, ${recencyScore}, ${embeddingString}::vector
+      )
+      RETURNING "id"
+    `;
+    const newId = result[0].id;
+
+    // Fetch the newly created memory to return the complete object, fulfilling the method's signature.
+    const newMemory = await this.findById(newId);
+    if (!newMemory) {
+      // This should not happen if the insert was successful.
+      throw new Error('Failed to retrieve memory immediately after creation.');
+    }
+    return newMemory;
   }
 
   async findById(id: string): Promise<Memory | null> {
@@ -62,22 +82,20 @@ export class MemoryRepository implements IMemoryRepository {
   ): Promise<MemoryWithSimilarity[]> {
     const embeddingString = `[${embedding.join(',')}]`;
 
-    // Important: We are casting the result of the raw query to the expected type.
-    // Prisma's $queryRaw returns `unknown[]`, so we must be sure the query returns columns
-    // that match the `MemoryWithSimilarity` type.
-    // We are selecting all columns from the Memory table except the embedding itself,
-    // and adding a calculated `similarity` column.
+    // This raw query performs a hybrid search, weighting vector similarity and importance score.
+    // It selects all necessary fields from the Memory model to match the `MemoryWithSimilarity` type.
     const results = await prisma.$queryRaw<MemoryWithSimilarity[]>`
       SELECT
         "id",
-        "content",
-        "createdAt",
-        "updatedAt",
-        "lastAccessedAt",
-        "importanceScore",
         "sessionId",
-        "isDeleted",
+        "text",
+        "compressedText",
         "metadata",
+        "importanceScore",
+        "recencyScore",
+        "createdAt",
+        "lastAccessedAt",
+        "isDeleted",
         1 - (embedding <=> ${embeddingString}::vector) as similarity
       FROM "Memory"
       WHERE
@@ -94,8 +112,9 @@ export class MemoryRepository implements IMemoryRepository {
 
   async findDuplicate(sessionId: string, embedding: number[]): Promise<DuplicateMemory | null> {
     const embeddingString = `[${embedding.join(',')}]`;
-    const similarityThreshold = 0.95; // Very high similarity threshold for deduplication
+    const similarityThreshold = 0.95; // High similarity for deduplication
 
+    // Checks for a very similar memory in the last 24 hours to prevent duplicates.
     const results = await prisma.$queryRaw<DuplicateMemory[]>`
       SELECT "id"
       FROM "Memory"
@@ -104,16 +123,20 @@ export class MemoryRepository implements IMemoryRepository {
         "isDeleted" = false AND
         "createdAt" >= NOW() - interval '24 hours' AND
         1 - (embedding <=> ${embeddingString}::vector) > ${similarityThreshold}
+      ORDER BY 1 - (embedding <=> ${embeddingString}::vector) DESC
       LIMIT 1
     `;
 
     return results.length > 0 ? results[0] : null;
   }
 
-  async updateLastAccessed(ids: string[], timestamp: Date): Promise<void> {
-    if (!ids.length) return;
+  async updateLastAccessed(ids: string[] | string, timestamp: Date): Promise<void> {
+    const idList = Array.isArray(ids) ? ids : [ids];
+    if (!idList.length) return;
+
+    // Prisma's `updateMany` is still available as it doesn't touch the `Unsupported` field.
     await prisma.memory.updateMany({
-      where: { id: { in: ids } },
+      where: { id: { in: idList } },
       data: { lastAccessedAt: timestamp }
     });
   }
