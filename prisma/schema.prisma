@@ -1,10 +1,12 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
 }
 
 model Session {
@@ -16,20 +18,21 @@ model Session {
 }
 
 model Memory {
-  id             String    @id @default(uuid())
-  sessionId      String
-  session        Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  text           String
-  compressedText String
-  metadata       Json?
+  id              String    @id @default(uuid())
+  sessionId       String
+  session         Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  text            String
+  compressedText  String
+  metadata        Json?
   importanceScore Float
   recencyScore    Float?
-  embedding       Float[] @default([])
-  createdAt      DateTime  @default(now())
-  lastAccessedAt DateTime  @default(now())
-  isDeleted      Boolean   @default(false)
+  embedding       Unsupported("vector(512)")
+  createdAt       DateTime  @default(now())
+  lastAccessedAt  DateTime  @default(now())
+  isDeleted       Boolean   @default(false)
 
   @@index([sessionId, createdAt])
   @@index([sessionId, importanceScore])
   @@index([sessionId, isDeleted])
+  @@index([embedding], name: "embedding_index", type: Hnsw)
 }
