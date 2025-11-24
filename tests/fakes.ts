@@ -5,27 +5,34 @@ import { ISessionRepository } from '../src/repositories/sessionRepository';
 import { EmbeddingProvider } from '../src/services/embeddings/EmbeddingProvider';
 
 export class FakeMemoryRepository implements IMemoryRepository {
-  private memories: Memory[] = [];
+  private memories: (Memory & { embedding: number[] })[] = [];
 
   async create(data: MemoryCreateInput): Promise<Memory> {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { embedding, ...restData } = data;
-    const memory: Memory = {
+    const memory: Memory & { embedding: number[] } = {
       id: randomUUID(),
-      ...restData,
+      sessionId: data.sessionId,
+      text: data.text,
+      compressedText: data.compressedText,
       metadata: (data.metadata as Prisma.JsonValue) ?? null,
+      importanceScore: data.importanceScore,
       recencyScore: data.recencyScore ?? null,
+      embedding: data.embedding ?? [],
       createdAt: new Date(),
       lastAccessedAt: new Date(),
       isDeleted: false
     };
     this.memories.push(memory);
-    return memory;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { embedding, ...rest } = memory;
+    return rest;
   }
 
   async findById(id: string): Promise<Memory | null> {
     const memory = this.memories.find((m) => m.id === id && !m.isDeleted);
-    return Promise.resolve(memory || null);
+    if (!memory) return null;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { embedding, ...rest } = memory;
+    return Promise.resolve(rest);
   }
 
   async findSimilarMemories(
@@ -33,37 +40,44 @@ export class FakeMemoryRepository implements IMemoryRepository {
     embedding: number[],
     limit: number,
     minScore: number
-  ): Promise<(Memory & { similarity: number })[]> {
-    // This is a fake implementation, so we'll just return some memories
-    // based on importance score as a proxy for similarity for testing purposes.
+  ): Promise<(Omit<Memory, 'embedding'> & { similarity: number })[]> {
     console.log('Called findSimilarMemories with:', { sessionId, embedding, limit, minScore });
     const similarMems = this.memories
       .filter((m) => m.sessionId === sessionId && !m.isDeleted)
       .sort((a, b) => b.importanceScore - a.importanceScore)
       .slice(0, limit)
-      .map((m) => ({ ...m, similarity: m.importanceScore })); // Use importance as similarity
+      .map((m) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { embedding, ...rest } = m;
+        return { ...rest, similarity: m.importanceScore };
+      });
 
     return Promise.resolve(similarMems);
   }
 
   async findDuplicate(sessionId: string, embedding: number[]): Promise<{ id: string } | null> {
-    // This is a fake implementation. In a real scenario, you might want to
-    // implement logic to check for duplicates based on the embedding.
     console.log('Called findDuplicate with:', { sessionId, embedding });
     return Promise.resolve(null);
   }
 
   async listActiveBySession(sessionId: string, take = 200): Promise<Memory[]> {
-    return this.memories
+    const activeMemories = this.memories
       .filter((m) => m.sessionId === sessionId && !m.isDeleted)
       .sort((a, b) => b.importanceScore - a.importanceScore || b.createdAt.getTime() - a.createdAt.getTime())
       .slice(0, take);
+    
+    return activeMemories.map(m => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { embedding, ...rest } = m;
+      return rest;
+    });
   }
 
 
-  async updateLastAccessed(ids: string[], timestamp: Date): Promise<void> {
+  async updateLastAccessed(ids: string[] | string, timestamp: Date): Promise<void> {
+    const idList = Array.isArray(ids) ? ids : [ids];
     this.memories = this.memories.map((m) =>
-      ids.includes(m.id) ? { ...m, lastAccessedAt: timestamp } : m
+      idList.includes(m.id) ? { ...m, lastAccessedAt: timestamp } : m
     );
   }
 
@@ -104,7 +118,7 @@ export class FakeMemoryRepository implements IMemoryRepository {
     maxImportance: number;
     take?: number;
   }): Promise<Memory[]> {
-    return this.memories
+    const prunable = this.memories
       .filter(
         (m) =>
           !m.isDeleted &&
@@ -114,6 +128,12 @@ export class FakeMemoryRepository implements IMemoryRepository {
       )
       .sort((a, b) => a.importanceScore - b.importanceScore || a.lastAccessedAt.getTime() - b.lastAccessedAt.getTime())
       .slice(0, take);
+
+    return prunable.map(m => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { embedding, ...rest } = m;
+      return rest;
+    });
   }
 
   async countActive(sessionId: string): Promise<number> {
