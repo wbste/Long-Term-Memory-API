@@ -8,15 +8,13 @@ export class FakeMemoryRepository implements IMemoryRepository {
   private memories: Memory[] = [];
 
   async create(data: MemoryCreateInput): Promise<Memory> {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { embedding, ...restData } = data;
     const memory: Memory = {
       id: randomUUID(),
-      sessionId: data.sessionId,
-      text: data.text,
-      compressedText: data.compressedText,
+      ...restData,
       metadata: (data.metadata as Prisma.JsonValue) ?? null,
-      importanceScore: data.importanceScore,
       recencyScore: data.recencyScore ?? null,
-      embedding: data.embedding ?? [],
       createdAt: new Date(),
       lastAccessedAt: new Date(),
       isDeleted: false
@@ -25,12 +23,43 @@ export class FakeMemoryRepository implements IMemoryRepository {
     return memory;
   }
 
+  async findById(id: string): Promise<Memory | null> {
+    const memory = this.memories.find((m) => m.id === id && !m.isDeleted);
+    return Promise.resolve(memory || null);
+  }
+
+  async findSimilarMemories(
+    sessionId: string,
+    embedding: number[],
+    limit: number,
+    minScore: number
+  ): Promise<(Memory & { similarity: number })[]> {
+    // This is a fake implementation, so we'll just return some memories
+    // based on importance score as a proxy for similarity for testing purposes.
+    console.log('Called findSimilarMemories with:', { sessionId, embedding, limit, minScore });
+    const similarMems = this.memories
+      .filter((m) => m.sessionId === sessionId && !m.isDeleted)
+      .sort((a, b) => b.importanceScore - a.importanceScore)
+      .slice(0, limit)
+      .map((m) => ({ ...m, similarity: m.importanceScore })); // Use importance as similarity
+
+    return Promise.resolve(similarMems);
+  }
+
+  async findDuplicate(sessionId: string, embedding: number[]): Promise<{ id: string } | null> {
+    // This is a fake implementation. In a real scenario, you might want to
+    // implement logic to check for duplicates based on the embedding.
+    console.log('Called findDuplicate with:', { sessionId, embedding });
+    return Promise.resolve(null);
+  }
+
   async listActiveBySession(sessionId: string, take = 200): Promise<Memory[]> {
     return this.memories
       .filter((m) => m.sessionId === sessionId && !m.isDeleted)
       .sort((a, b) => b.importanceScore - a.importanceScore || b.createdAt.getTime() - a.createdAt.getTime())
       .slice(0, take);
   }
+
 
   async updateLastAccessed(ids: string[], timestamp: Date): Promise<void> {
     this.memories = this.memories.map((m) =>
