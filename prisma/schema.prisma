@@ -1,11 +1,12 @@
 generator client {
   provider        = "prisma-client-js"
-  previewFeatures = ["vectorSearch"]
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pg_vector]
 }
 
 model Session {
@@ -33,5 +34,4 @@ model Memory {
   @@index([sessionId, createdAt])
   @@index([sessionId, importanceScore])
   @@index([sessionId, isDeleted])
-  @@index([embedding], map: "embedding_idx", type: Hnsw)
 }
