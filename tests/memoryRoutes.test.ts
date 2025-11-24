@@ -1,17 +1,39 @@
 import request from 'supertest';
 import { createApp } from '../src/app';
 import { MemoryService } from '../src/services/memoryService';
-import { FakeEmbeddingProvider, FakeMemoryRepository, FakeSessionRepository } from './fakes';
+import { FakeMemoryRepository, FakeSessionRepository } from './fakes';
+import { OpenAIEmbeddingProvider } from '../src/services/embeddings/OpenAIEmbeddingProvider';
+import axios from 'axios';
+
+// Mock axios to avoid real API calls
+jest.mock('axios');
+const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 describe('Memory routes', () => {
   const sessionId = 'route-session';
   const memoryRepository = new FakeMemoryRepository();
   const sessionRepository = new FakeSessionRepository();
-  const embeddingProvider = new FakeEmbeddingProvider(0.6, true);
+  const embeddingProvider = new OpenAIEmbeddingProvider(); // Use OpenAI provider
   const memoryService = new MemoryService(memoryRepository, sessionRepository, embeddingProvider);
   const app = createApp({ memoryService, embeddingProvider });
 
+  beforeEach(() => {
+    // Reset mocks before each test
+    mockedAxios.post.mockClear();
+  });
+
   it('stores and retrieves memories via HTTP', async () => {
+    // Mock the OpenAI API response for embeddings
+    mockedAxios.post.mockResolvedValue({
+      data: {
+        data: [
+          {
+            embedding: Array.from({ length: 512 }, () => Math.random())
+          }
+        ]
+      }
+    });
+
     const storeResponse = await request(app)
       .post('/api/memory/store')
       .send({
@@ -22,6 +44,17 @@ describe('Memory routes', () => {
 
     expect(storeResponse.status).toBe(201);
     expect(storeResponse.body.sessionId).toBe(sessionId);
+
+    // Mock the response for the retrieval query
+    mockedAxios.post.mockResolvedValue({
+        data: {
+          data: [
+            {
+              embedding: Array.from({ length: 512 }, () => Math.random())
+            }
+          ]
+        }
+      });
 
     const retrieveResponse = await request(app)
       .post('/api/memory/retrieve')
