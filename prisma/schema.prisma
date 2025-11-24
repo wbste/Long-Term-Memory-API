@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["vectorSearch"]
 }
 
 datasource db {
@@ -24,7 +25,7 @@ model Memory {
   metadata       Json?
   importanceScore Float
   recencyScore    Float?
-  embedding       Float[]?
+  embedding       Unsupported("vector(1536)")?
   createdAt      DateTime  @default(now())
   lastAccessedAt DateTime  @default(now())
   isDeleted      Boolean   @default(false)
@@ -32,4 +33,5 @@ model Memory {
   @@index([sessionId, createdAt])
   @@index([sessionId, importanceScore])
   @@index([sessionId, isDeleted])
+  @@index([embedding], map: "embedding_idx", type: Hnsw)
 }
