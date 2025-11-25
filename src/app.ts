@@ -24,13 +24,15 @@ export interface AppDependencies {
 export const createApp = ({ memoryService, embeddingProvider }: AppDependencies) => {
   const app = express();
 
+  // CORS-konfiguration: Tillåt specifika domäner och headers
   const corsOrigin = [
-    'http://localhost:5173',                                  
-    'https://memvault-demo-g38n.vercel.app',                  
-    'https://memvault-demo-g38n-hmln73sg5-jacobs-projects-f74302f1.vercel.app' 
+    'http://localhost:5173',
+    'https://memvault-demo-g38n.vercel.app',
+    'https://memvault-demo-g38n-hmln73sg5-jacobs-projects-f74302f1.vercel.app'
   ];
 
   app.use(helmet());
+  
   app.use(
     cors({
       origin: corsOrigin,
@@ -38,6 +40,7 @@ export const createApp = ({ memoryService, embeddingProvider }: AppDependencies)
       allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key']
     })
   );
+
   app.use(express.json({ limit: '1mb' }));
   app.use(requestLogger);
   app.use(rateLimiter);
