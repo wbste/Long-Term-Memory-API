@@ -24,7 +24,7 @@ export interface AppDependencies {
 export const createApp = ({ memoryService, embeddingProvider }: AppDependencies) => {
   const app = express();
 
-  // CORS-konfiguration: Tillåt specifika domäner och headers
+  // CORS: Vercel-länkarna måste finnas här
   const corsOrigin = [
     'http://localhost:5173',
     'https://memvault-demo-g38n.vercel.app',
@@ -32,7 +32,6 @@ export const createApp = ({ memoryService, embeddingProvider }: AppDependencies)
   ];
 
   app.use(helmet());
-  
   app.use(
     cors({
       origin: corsOrigin,
@@ -40,7 +39,7 @@ export const createApp = ({ memoryService, embeddingProvider }: AppDependencies)
       allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key']
     })
   );
-
+  
   app.use(express.json({ limit: '1mb' }));
   app.use(requestLogger);
   app.use(rateLimiter);
@@ -50,15 +49,23 @@ export const createApp = ({ memoryService, embeddingProvider }: AppDependencies)
   const healthController = new HealthController(embeddingProvider);
   const adminController = new AdminController(memoryService);
 
-  // Expose top-level health for platform probes (in addition to /api/health)
+  // Health check för Railway (viktig för att servicen inte ska krascha)
   app.get('/health', healthController.health);
 
   const apiRouter = express.Router();
-  apiRouter.use(memoryRoutes(memoryController));
-  apiRouter.use(sessionRoutes(sessionController));
-  apiRouter.use(healthRoutes(healthController));
-  apiRouter.use(adminRoutes(adminController));
 
+  // --- HÄR VAR FELET (404) ---
+  // Vi måste lägga till '/memory' som prefix, annars hamnar ruterna direkt på /api/
+  apiRouter.use('/memory', memoryRoutes(memoryController));
+  
+  // Jag lägger till prefix för session och admin också för säkerhets skull
+  apiRouter.use('/session', sessionRoutes(sessionController));
+  apiRouter.use('/admin', adminRoutes(adminController));
+  
+  // Health brukar ligga direkt under /api/health i sin router-fil, så vi låter den vara
+  apiRouter.use(healthRoutes(healthController));
+
+  // Montera allt under /api
   app.use('/api', apiRouter);
 
   app.use(errorHandler);
